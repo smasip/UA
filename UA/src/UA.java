@@ -7,6 +7,7 @@ import java.util.Scanner;
 import layers.TransactionLayerUA;
 
 import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import mensajesSIP.*;
@@ -31,9 +32,15 @@ public class UA {
 		RegisterMessage registerMessage = new RegisterMessage();
 		ArrayList<String> vias = new ArrayList<String>();
 		//boolean keepTrying = true;
+		ServerSocket s = new ServerSocket(0);
+		int registerPort = s.getLocalPort();
+		s.close();
+		DatagramSocket registerSocket = new DatagramSocket(registerPort);
+		byte[] buf = new byte[1024];
+		DatagramPacket registerPacket = new DatagramPacket(buf, buf.length, IPProxy, puertoEscuchaProxy);
 		
 		registerMessage.setDestination("sip:registrar@dominio.es");
-		vias.add("localhost:" + Integer.toString(puertoEscuchaUA));
+		vias.add("localhost:" + Integer.toString(registerPort));
 		registerMessage.setVias(vias);
 		registerMessage.setMaxForwards(70);
 		registerMessage.setToUri("sip:" + usuarioSIP + "@dominio.es");
@@ -45,12 +52,13 @@ public class UA {
 		registerMessage.setExpires("7200");
 		registerMessage.setContentLength(0);
 		
-		p.setData(registerMessage.toStringMessage().getBytes());
-		datagramSocket.send(p);
-		datagramSocket.receive(p);
+		registerPacket.setData(registerMessage.toStringMessage().getBytes());
+		registerSocket.send(registerPacket);
+		registerPacket.setData(buf, 0, buf.length);
+		registerSocket.receive(registerPacket);
 		SIPMessage message;
 		try {
-			message = SIPMessage.parseMessage(new String(p.getData()));
+			message = SIPMessage.parseMessage(new String(registerPacket.getData()));
 			if(message instanceof OKMessage) {
 				((OKMessage) message).setSdp(null);
 				System.out.println(message.toStringMessage());
@@ -60,6 +68,8 @@ public class UA {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
+		registerSocket.close();
 		
 	}
 	
@@ -90,6 +100,18 @@ public class UA {
 		invite.setSdp(sdp);
 		
 		return invite;
+	}
+	
+	private static boolean checkInput(String input) {
+		String[] s = input.split(" ");
+		if(s.length == 2 && s[0].equals("INVITE")) {
+			return true;
+		}else if(s.length == 1 && 
+				(s[0].equals("BYE") || s[0].equals("S") || s[0].equals("N"))) 
+		{
+			return true;
+		}
+		return false;
 	}
 
 	public static void main(String[] args) {
@@ -125,16 +147,6 @@ public class UA {
 		byte[] buf = new byte[1024];
 		p = new DatagramPacket(buf, buf.length, IPProxy, puertoEscuchaProxy);
 		
-		try {
-			register();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.out.println("Register operation failed");
-			System.exit(0);
-		}
-		
-		
 		ul = new UserLayerUA();
 		transactionLayer = new TransactionLayerUA();
 		transportLayer = new TransportLayer();
@@ -148,54 +160,62 @@ public class UA {
 		transportLayer.setTransactionLayer(transactionLayer);
 		transportLayer.setDatagramSocket(datagramSocket);
 		
-		Scanner reader = new Scanner(System.in);
-		System.out.println("Pulsa C para Client, S para Server: ");
-		String input = reader.nextLine();
-		p.setData(buf, 0, buf.length);
-		if(input.equals("C")) {
-			System.out.println("Sending an invite ...");
-			ul.userInput("INVITE asdf2");
-			try {
-				datagramSocket.receive(p);
-				transportLayer.recvFromNetwork(p);
-				p.setData(buf, 0, buf.length);
-				datagramSocket.receive(p);
-				transportLayer.recvFromNetwork(p);
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (SIPException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}else if(input.equals("S")) {
-			try {
-				System.out.println("Waiting for an invite ...");
-				datagramSocket.receive(p);
-				System.out.println(new String(p.getData()));
-				transportLayer.recvFromNetwork(p);
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (SIPException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+		Thread t = new Thread() {
+		    public void run() {
+		    	while(true) {
+		    		try {
+						datagramSocket.receive(p);
+						transportLayer.recvFromNetwork(p);
+						p.setData(buf, 0, buf.length);
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (SIPException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+		    	}
+		    }
+		};
+		t.start();
+		
+		try {
+			register();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			System.out.println("Register operation failed");
+			System.exit(0);
 		}
 		
+		Scanner reader = new Scanner(System.in);;
+		int result;
+		String input;
+		while(true) {
+			System.out.println("Enter a command: ");
+			input = reader.nextLine();
+			if(!checkInput(input)) {
+				System.out.println("Invalid command. Please enter a valid command ... ");
+				continue;
+			}
+			result = ul.userInput(input);
+			switch (result) {
+			case UserLayerUA.CALL_IN_PROGRESS:
+				System.out.println("Command failed. A call is already in progress ...");
+				break;
+			case UserLayerUA.NO_CALL:
+				System.out.println("Command failed. No call to terminate");
+				break;
+			case UserLayerUA.OK:
+				break;
+			default:
+				System.out.println("Invalid command. Please enter a valid command ... ");
+				break;
+			}
+	
 		
-		
-//		while(true) {
-//			transaction = new ServerTransaction(datagramSocket, p, ul);
-//			System.out.println("Enter a command: ");
-//			String input = reader.nextLine();
-//			ul.userInput(input);
-//			transaction = ul.getTransaction();
-//		}
-		
-		
-		
+		}
 
 	}
-
 }
+	
