@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import layers.*;
 import layersUA.TransactionLayerUA;
+import mensajesSIP.ACKMessage;
 import mensajesSIP.BusyHereMessage;
 import mensajesSIP.InviteMessage;
 import mensajesSIP.NotFoundMessage;
@@ -21,12 +22,13 @@ public enum ServerStateUA {
 	PROCEEDING{
 		@Override
 		public ServerStateUA processMessage(SIPMessage message, TransactionLayer tl) {
-			System.out.println("PROCEEDING");
-			System.out.println(message.toStringMessage());
+			
 			if (message instanceof InviteMessage) {
+				System.out.println("PROCEEDING -> PROCEEDING");
 				tl.sendToUser(message);
 				return this;
 			}else if (message instanceof RingingMessage) {
+				System.out.println("PROCEEDING -> PROCEEDING");
 				try {
 					((TransactionLayerUA) tl).sendToTransport(message);
 				} catch (IOException e) {
@@ -37,10 +39,13 @@ public enum ServerStateUA {
 					  message instanceof ProxyAuthenticationMessage ||
 					  message instanceof RequestTimeoutMessage ||
 					  message instanceof BusyHereMessage ||
-					  message instanceof ServiceUnavailableMessage) {
-				// Falta send response
+					  message instanceof ServiceUnavailableMessage) 
+			{
+				System.out.println("PROCEEDING -> COMPLETED");
+				tl.sendError(message);
 				return COMPLETED;
 			}else if (message instanceof OKMessage) {
+				System.out.println("PROCEEDING -> TERMINATED");
 				try {
 					((TransactionLayerUA) tl).sendToTransport(message);
 					return TERMINATED;
@@ -55,15 +60,21 @@ public enum ServerStateUA {
 	COMPLETED{
 		@Override
 		public ServerStateUA processMessage(SIPMessage message, TransactionLayer tl) {
-			return TERMINATED;
+			
+			if(message instanceof ACKMessage) {
+				System.out.println("COMPLETED -> TERMINATED");
+				tl.cancelTimer();
+				return TERMINATED;
+			}
+			
+			return this;
+			
 		}
 		
 	},
 	TERMINATED{
 		@Override
 		public ServerStateUA processMessage(SIPMessage message, TransactionLayer tl) {
-			System.out.println("TERMINATED");
-			System.out.println(message.toStringMessage());
 			return this;
 		}
 		

@@ -1,7 +1,5 @@
 package ua;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.util.ArrayList;
 import java.util.Scanner;
@@ -9,10 +7,8 @@ import java.util.Scanner;
 import layersUA.TransactionLayerUA;
 import layersUA.TransportLayerUA;
 import layersUA.UserLayerUA;
-import layersUA.UserLayerUA.Result;
 
 import java.net.InetAddress;
-import java.net.ServerSocket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import mensajesSIP.*;
@@ -81,6 +77,16 @@ public class UA {
 		return invite;
 	}
 	
+	public static void  printlnDebugMessage(SIPMessage message) {
+		String stringMessage;
+		if(debug) {
+			stringMessage = message.toStringMessage();
+		}else {
+			stringMessage = message.toStringMessage().split("\n")[0];
+		}
+		System.out.println(stringMessage);
+	}
+	
 	private static boolean checkInput(String input) {
 		String[] s = input.split(" ");
 		if(s.length == 2 && s[0].equals("INVITE")) {
@@ -127,6 +133,8 @@ public class UA {
 		transactionLayer = new TransactionLayerUA();
 		transportLayer = new TransportLayerUA();
 		
+		ul.setTransactionLayer(transactionLayer);
+		
 		transactionLayer.setTransportLayer(transportLayer);
 		transactionLayer.setUl(ul);
 		transactionLayer.setAddressProxy(IPProxy);
@@ -136,39 +144,25 @@ public class UA {
 		transportLayer.setDatagramSocket(datagramSocket);
 		transportLayer.recvFromNetwork();
 		
-		ul.setTransactionLayer(transactionLayer);
-		ul.register();
+		if(ul.register()) {
+			System.out.println("User successfully registered ...");
+		}else {
+			System.out.println("User not found ...");
+			System.exit(0);
+		}
 		
 		Scanner reader = new Scanner(System.in);
-		UserLayerUA.Result result;
 		String input;
-		System.out.println("Enter a command: ");
+		System.out.println("Enter a command:");
 		while(true) {
 			input = reader.nextLine();
 			if(!checkInput(input)) {
 				System.out.println("Invalid command. Please enter a valid command ... ");
 				continue;
 			}
-			result = ul.userInput(input);
-			switch (result) {
-				case CALL_IN_PROGRESS:
-					System.out.println("Command failed. A call is already in progress ...");
-					break;
-				case NO_CALL:
-					System.out.println("Command failed. No call to terminate");
-					break;
-				case OK:
-					break;
-				case REGISTERING:
-					System.out.println("Registering. Please wait ... ");
-					break;
-				default:
-					System.out.println("Invalid command. Please enter a valid command ... ");
-					break;
-			}
-	
-		
+			ul.userInput(input);
 		}
+	
 
 	}
 }

@@ -10,10 +10,10 @@ public enum ClientStateUA {
 	CALLING {
 		@Override
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
-			System.out.println("CALLING");
-			System.out.println(message.toStringMessage());
+		
 			if(message instanceof InviteMessage) {
 				try {
+					System.out.println("CALLING -> CALLING");
 					((TransactionLayerUA) tl).sendToTransport(message);
 					return this;
 				} catch (IOException e) {
@@ -21,15 +21,20 @@ public enum ClientStateUA {
 				}
 			}else if (message instanceof TryingMessage || 
 					  message instanceof RingingMessage) {
+				System.out.println("CALLING -> PROCEEDING");
 				return PROCEEDING;
 			}else if (message instanceof OKMessage) {
+				System.out.println("CALLING -> TERMINATED");
 				tl.sendToUser(message);
 				return TERMINATED;
 			}else if (message instanceof NotFoundMessage || 
 					  message instanceof ProxyAuthenticationMessage ||
 					  message instanceof RequestTimeoutMessage ||
 					  message instanceof BusyHereMessage ||
-					  message instanceof ServiceUnavailableMessage) {
+					  message instanceof ServiceUnavailableMessage) 
+			{
+				System.out.println("CALLING -> COMPLETED");
+				tl.sendACK(message);
 				return COMPLETED;
 			}
 			return this;
@@ -39,20 +44,23 @@ public enum ClientStateUA {
 	PROCEEDING{
 		@Override
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
-			System.out.println("PROCEEDING");
-			System.out.println(message.toStringMessage());
+		
 			if (message instanceof TryingMessage || 
 			    message instanceof RingingMessage) {
+				System.out.println("PROCEEDING -> PROCEEDING");
 				return this;
 			}else if (message instanceof OKMessage) {
+				System.out.println("PROCEEDING -> TERMINATED");
 				tl.sendToUser(message);
 				return TERMINATED;
 			}else if (message instanceof NotFoundMessage || 
 					  message instanceof ProxyAuthenticationMessage ||
 					  message instanceof RequestTimeoutMessage ||
 					  message instanceof BusyHereMessage ||
-					  message instanceof ServiceUnavailableMessage) {
-				// Falta send ACK y resp to TU
+					  message instanceof ServiceUnavailableMessage) 
+			{
+				System.out.println("PROCEEDING -> COMPLETED");
+				tl.sendACK(message);
 				return COMPLETED;
 			}
 			return this;
@@ -62,15 +70,22 @@ public enum ClientStateUA {
 	COMPLETED{
 		@Override
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
-			return TERMINATED;
+			if (message instanceof NotFoundMessage || 
+				message instanceof ProxyAuthenticationMessage ||
+				message instanceof RequestTimeoutMessage ||
+				message instanceof BusyHereMessage ||
+				message instanceof ServiceUnavailableMessage)
+			{
+				System.out.println("COMPLETED -> TERMINATED");
+				tl.sendACK(message);
+			}
+				return this;
 		}
 		
 	},
 	TERMINATED{
 		@Override
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
-			System.out.println("TERMINATED");
-			System.out.println(message.toStringMessage());
 			return this;
 		}
 		
