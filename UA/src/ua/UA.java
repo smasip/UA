@@ -13,10 +13,12 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import mensajesSIP.*;
 import layers.*;
+import utils.*;
 
 public class UA {
 	
 	private static DatagramSocket datagramSocket;
+	public static InetAddress myAddress;
 	private static InetAddress IPProxy;
 	public static int puertoEscuchaUA;
 	public static int puertoEscuchaProxy;
@@ -127,6 +129,14 @@ public class UA {
 			e.printStackTrace();
 			System.out.println("Creation of DatagramSocket failed");
 			System.exit(0);
+		}
+		
+		try {
+			myAddress = Utils.getMyAddress();
+			System.out.println(myAddress.getHostAddress());
+		} catch (SocketException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 		
 		ul = new UserLayerUA();

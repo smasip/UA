@@ -63,7 +63,8 @@ public class UserLayerUA extends UserLayer{
 				if(message instanceof OKMessage) {
 					System.out.println("Successful call!!!");
 					currentTrasaction = Transaction.NO_TRANSACTION;
-					callInProgress = false;
+					ACKMessage sesionACK = new ACKMessage();
+					((TransactionLayerUA)transactionLayer).recvFromUser(message);
 				}else if(message instanceof BusyHereMessage) {
 					System.out.println("Call rejected!!!");
 					currentTrasaction = Transaction.NO_TRANSACTION;
@@ -159,6 +160,7 @@ public class UserLayerUA extends UserLayer{
 			}else if(command[0].equals("N") && isRinging) {
 				isRinging = false;
 				currentTrasaction = Transaction.NO_TRANSACTION;
+				callInProgress = false;
 				if (task != null) {
 					task.cancel();
 					task = null;
