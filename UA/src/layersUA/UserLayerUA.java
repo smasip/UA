@@ -1,6 +1,7 @@
 package layersUA;
 
-import java.security.GeneralSecurityException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -17,7 +18,10 @@ public class UserLayerUA extends UserLayer{
 	private Timer timer;
 	private TimerTask task;
 	private InviteMessage inboudInvite;
-	private InviteMessage outgoingInvite;
+	private String callId;
+	private String toURI;
+	private String destination;
+	private String route;
 	private boolean successfulRegister;
 	
 	
@@ -27,17 +31,12 @@ public class UserLayerUA extends UserLayer{
 		this.isRinging = false;
 		this.currentTrasaction = Transaction.REGISTER_TRANSACTION;
 		this.inboudInvite = null;
-		this.outgoingInvite = null;
+		this.callId = null;
+		this.toURI = null;
+		this.destination = null;
+		this.route = null;
+		this.successfulRegister = false;
 		this.timer = new Timer();
-	}
-	
-	public InviteMessage getInboudInvite() {
-		return inboudInvite;
-	}
-
-
-	public InviteMessage getOutgoingInvite() {
-		return outgoingInvite;
 	}
 
 
@@ -61,14 +60,46 @@ public class UserLayerUA extends UserLayer{
 			case INVITE_TRANSACTION:
 				
 				if(message instanceof OKMessage) {
-					System.out.println("Successful call!!!");
+	
 					currentTrasaction = Transaction.NO_TRANSACTION;
-					ACKMessage sesionACK = new ACKMessage();
-					((TransactionLayerUA)transactionLayer).recvFromUser(message);
+					route = ((OKMessage)message).getRecordRoute();
+					ACKMessage sessionACK = new ACKMessage();
+					
+					sessionACK.setDestination(destination);
+					sessionACK.setVias(UA.getMyVias());
+					sessionACK.setToUri(toURI);
+					sessionACK.setFromUri(UA.getMyURI());
+					sessionACK.setMaxForwards(70);
+					sessionACK.setCallId(callId);
+					sessionACK.setRoute(route);
+					sessionACK.setcSeqNumber("2");
+					sessionACK.setcSeqStr("ACK");
+					sessionACK.setContentLength(0);
+					
+					if(route == null) {
+						String[] s = ((OKMessage)message).getContact().split("@")[1].split(":");
+						try {
+							((TransactionLayerUA)transactionLayer).setSessionAddress(InetAddress.getByName(s[0]));
+							((TransactionLayerUA)transactionLayer).setSessionPort(Integer.valueOf(s[1]));
+						} catch (UnknownHostException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					}
+					
+					((TransactionLayerUA)transactionLayer).recvFromUser(sessionACK);
+					
 				}else if(message instanceof BusyHereMessage) {
-					System.out.println("Call rejected!!!");
+					
 					currentTrasaction = Transaction.NO_TRANSACTION;
 					callInProgress = false;
+					inboudInvite = null;
+					destination = null;
+					callId = null;
+					toURI = null;
+					destination = null;
+					route = null;
+					
 				}
 				
 				break;
@@ -76,11 +107,17 @@ public class UserLayerUA extends UserLayer{
 			case NO_TRANSACTION:
 				
 				if(message instanceof InviteMessage) {
+					
 					System.out.println("Ringing !!! Please hit S to accept or N to reject ...");
+					
 					isRinging = true;
 					callInProgress = true;
 					currentTrasaction = Transaction.INVITE_TRANSACTION;
 					inboudInvite = (InviteMessage) message;
+					route = inboudInvite.getRecordRoute();
+					callId = inboudInvite.getCallId();
+					toURI = inboudInvite.getToUri();
+					destination = inboudInvite.getDestination();
 					
 					task = new TimerTask() {
 						
@@ -92,20 +129,28 @@ public class UserLayerUA extends UserLayer{
 							if(isRinging) {
 								
 								if(numTimes < 5) {
-									RingingMessage ringing = (RingingMessage) 
-											SIPMessage.createResponse(SIPMessage._180_RINGING, inboudInvite);
+									RingingMessage ringing = (RingingMessage) SIPMessage.createResponse(
+											SIPMessage._180_RINGING, inboudInvite, UA.getContact());
 									((TransactionLayerUA)transactionLayer).recvFromUser(ringing);
 									numTimes++;
 								}else {
-									RequestTimeoutMessage requestTimeout = (RequestTimeoutMessage) 
-											SIPMessage.createResponse(SIPMessage._408_REQUEST_TIMEOUT, inboudInvite);
-									((TransactionLayerUA)transactionLayer).recvFromUser(requestTimeout);
+									
+									RequestTimeoutMessage requestTimeout = (RequestTimeoutMessage) SIPMessage.createResponse(
+											SIPMessage._408_REQUEST_TIMEOUT, inboudInvite, UA.getContact());
+									
 									isRinging = false;
 									callInProgress = false;
 									currentTrasaction = Transaction.NO_TRANSACTION;
 									inboudInvite = null;
+									callId = null;
+									toURI = null;
+									destination = null;
+									route = null;
 									task.cancel();
-									task = null;
+									task = null;	
+									
+									((TransactionLayerUA)transactionLayer).recvFromUser(requestTimeout);
+									
 								}
 								
 							}
@@ -129,46 +174,86 @@ public class UserLayerUA extends UserLayer{
 	public void userInput(String input) {
 		
 		String[] command = input.split(" ");
+		InviteMessage outgoingInvite;
+		
 		if(command.length == 2 && command[0].equals("INVITE")) {
+			
 			if(callInProgress) {
 				System.out.println("Command failed. A call is already in progress ...");
 			}else {
+				
 				System.out.println("Calling ...");
-				outgoingInvite = UA.createInvite(command[1]);
-				((TransactionLayerUA)transactionLayer).recvFromUser(outgoingInvite);
 				callInProgress = true;
 				currentTrasaction = Transaction.INVITE_TRANSACTION;
+				outgoingInvite = UA.createInvite(command[1]);
+				callId = outgoingInvite.getCallId();
+				toURI = outgoingInvite.getToUri();
+				
+				((TransactionLayerUA)transactionLayer).recvFromUser(outgoingInvite);
+				
 			}
+			
 		}else if(command.length == 1){
+			
 			if(command[0].equals("BYE")) {
+				
 				if(callInProgress) {
+					
 					System.out.println("Hanging out ...");
+					currentTrasaction = Transaction.BYE_TRANSACTION;
+					ByeMessage bye = new ByeMessage();
+					bye.setDestination(destination);
+					bye.setVias(UA.getMyVias());
+					bye.setFromUri(UA.getMyURI());
+					bye.setToUri(toURI);
+					bye.setCallId(callId);
+					bye.setcSeqNumber("1");
+					bye.setcSeqStr("BYE");
+					bye.setContentLength(0);
+					
+					((TransactionLayerUA)transactionLayer).recvFromUser(bye);
+					
 				}else {
 					System.out.println("Command failed. No call to terminate");
 				}	
+				
 			}else if(command[0].equals("S") && isRinging) {
+				
 				isRinging = false;
-				currentTrasaction = Transaction.NO_TRANSACTION;
 				if (task != null) {
 					task.cancel();
 					task = null;
 				}
-				OKMessage ok = (OKMessage) SIPMessage.createResponse(SIPMessage._200_OK, inboudInvite);
-				((TransactionLayerUA)transactionLayer).recvFromUser(ok);
+				
+				OKMessage ok = (OKMessage) SIPMessage.createResponse(
+						SIPMessage._200_OK, inboudInvite, UA.getContact());
+			
+				currentTrasaction = Transaction.NO_TRANSACTION;
 				inboudInvite = null;
-				System.out.println("Call accepted !!!");
+				
+				((TransactionLayerUA)transactionLayer).recvFromUser(ok);
+				
 			}else if(command[0].equals("N") && isRinging) {
+				
 				isRinging = false;
+				if (task != null) {
+					task.cancel();
+					task = null;
+				}
+				
+				BusyHereMessage busy = (BusyHereMessage) SIPMessage.createResponse(
+						SIPMessage._486_BUSY_HERE, inboudInvite, UA.getContact());
+				
 				currentTrasaction = Transaction.NO_TRANSACTION;
 				callInProgress = false;
-				if (task != null) {
-					task.cancel();
-					task = null;
-				}
-				BusyHereMessage busy = (BusyHereMessage) SIPMessage.createResponse(SIPMessage._486_BUSY_HERE, inboudInvite);
-				((TransactionLayerUA)transactionLayer).recvFromUser(busy);
 				inboudInvite = null;
-				System.out.println("Call rejected !!!");
+				callId = null;
+				toURI = null;
+				destination = null;
+				route = null;
+				
+				((TransactionLayerUA)transactionLayer).recvFromUser(busy);
+				
 			}else{
 				System.out.println("Please hit S to accept or N to reject ...");
 			}
@@ -188,7 +273,6 @@ public class UserLayerUA extends UserLayer{
 				// TODO Auto-generated method stub
 				RegisterMessage register = UA.createRegister();
 				((TransactionLayerUA)transactionLayer).recvFromUser(register);
-				//task = null;
 			}
 		};
 		

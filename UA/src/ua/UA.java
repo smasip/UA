@@ -28,21 +28,42 @@ public class UA {
 	private static TransactionLayerUA transactionLayer;
 	private static TransportLayer transportLayer;
 	
+	
+	public static String getContact() {
+		return usuarioSIP + "@" + myAddress.getHostAddress() + ":" + Integer.toString(puertoEscuchaUA);
+	}
+	
+	public static String getProxyContact() {
+		return  "proxy@" + IPProxy.getHostAddress() + ":" + Integer.toString(puertoEscuchaProxy);
+	}
+	
+	public static ArrayList<String> getMyVias() {
+		ArrayList<String> vias = new ArrayList<String>();
+		vias.add(myAddress.getHostAddress() + ":" + Integer.toString(puertoEscuchaUA));
+		return vias;
+	}
+	
+	public static String getMyURI() {
+		return createURI(usuarioSIP);
+	}
+	
+	public static String createURI(String user) {
+		return "sip:" + user + "@dominio.es";
+	}
+	
 	public static RegisterMessage createRegister()
 	{
 		RegisterMessage registerMessage = new RegisterMessage();
-		ArrayList<String> vias = new ArrayList<String>();
 		
 		registerMessage.setDestination("sip:registrar@dominio.es");
-		vias.add("localhost:" + Integer.toString(puertoEscuchaUA));
-		registerMessage.setVias(vias);
+		registerMessage.setVias(getMyVias());
 		registerMessage.setMaxForwards(70);
-		registerMessage.setToUri("sip:" + usuarioSIP + "@dominio.es");
-		registerMessage.setFromUri("sip:" + usuarioSIP + "@dominio.es");
+		registerMessage.setToUri(getMyURI());
+		registerMessage.setFromUri(getMyURI());
 		registerMessage.setCallId(Integer.toString(123456789) + "@localhost");
 		registerMessage.setcSeqNumber("1234");
 		registerMessage.setcSeqStr("REGISTER");
-		registerMessage.setContact(usuarioSIP + "@localhost:" + Integer.toString(puertoEscuchaUA));
+		registerMessage.setContact(getContact());
 		registerMessage.setExpires("7200");
 		registerMessage.setContentLength(0);
 		
@@ -54,17 +75,15 @@ public class UA {
 		InviteMessage invite = new InviteMessage();
 		SDPMessage sdp = new SDPMessage();
 		
-		invite.setDestination("sip:" + callee + "@dominio.es");
-		ArrayList<String> vias = new ArrayList<String>();
-		vias.add("localhost:" + Integer.toString(puertoEscuchaUA));
-		invite.setVias(vias);
+		invite.setDestination(createURI(callee));
+		invite.setVias(getMyVias());
 		invite.setMaxForwards(70);
-		invite.setToUri("sip:" + callee + "@dominio.es");
-		invite.setFromUri("sip:" + usuarioSIP + "@dominio.es");
+		invite.setToUri(createURI(callee));
+		invite.setFromUri(getMyURI());
 		invite.setCallId(Integer.toString(123456789) + "@localhost");
 		invite.setcSeqNumber("1234");
 		invite.setcSeqStr("INVITE");
-		invite.setContact(usuarioSIP + "@localhost:" + Integer.toString(puertoEscuchaUA));
+		invite.setContact(getContact());
 		sdp.setIp("123.123.123.123");
 		sdp.setPort(555);
 		ArrayList<Integer> options = new ArrayList<Integer>();
@@ -131,10 +150,18 @@ public class UA {
 			System.exit(0);
 		}
 		
+//		try {
+//			myAddress = Utils.getMyAddress();
+//			System.out.println(myAddress.getHostAddress());
+//		} catch (SocketException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+		
 		try {
-			myAddress = Utils.getMyAddress();
+			myAddress = InetAddress.getByName("localhost");
 			System.out.println(myAddress.getHostAddress());
-		} catch (SocketException e) {
+		} catch (UnknownHostException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
@@ -147,8 +174,7 @@ public class UA {
 		
 		transactionLayer.setTransportLayer(transportLayer);
 		transactionLayer.setUl(ul);
-		transactionLayer.setAddressProxy(IPProxy);
-		transactionLayer.setPortProxy(puertoEscuchaProxy);
+		transactionLayer.setProxy(IPProxy, puertoEscuchaProxy);
 		
 		transportLayer.setTransactionLayer(transactionLayer);
 		transportLayer.setDatagramSocket(datagramSocket);

@@ -47,6 +47,7 @@ public enum ServerStateUA {
 			}else if (message instanceof OKMessage) {
 				System.out.println("PROCEEDING -> TERMINATED");
 				try {
+					((TransactionLayerUA) tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
 					((TransactionLayerUA) tl).sendToTransport(message);
 					return TERMINATED;
 				} catch (IOException e) {
@@ -63,6 +64,7 @@ public enum ServerStateUA {
 			
 			if(message instanceof ACKMessage) {
 				System.out.println("COMPLETED -> TERMINATED");
+				((TransactionLayerUA) tl).setCurrentTransaction(Transaction.NO_TRANSACTION);
 				tl.cancelTimer();
 				return TERMINATED;
 			}

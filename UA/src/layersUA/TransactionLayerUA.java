@@ -10,17 +10,21 @@ import java.util.TimerTask;
 import fsmUA.*;
 import layers.*;
 import mensajesSIP.*;
+import ua.UA;
 
 public class TransactionLayerUA extends TransactionLayer{
 	
 	InetAddress addressProxy;
 	int portProxy;
+	InetAddress sessionAddress;
+	int sessionPort;
 	ClientStateUA client;
 	ServerStateUA server;
-	String currentCallID;
 	Transaction currentTransaction;
 	private Timer timer;
 	private TimerTask task;
+	boolean sessionInProgress;
+	private String callId;
 	
 	public TransactionLayerUA() {
 		super();
@@ -29,27 +33,20 @@ public class TransactionLayerUA extends TransactionLayer{
 		this.currentTransaction = Transaction.REGISTER_TRANSACTION;
 		this.timer = new Timer();
 		this.task = null;
+		this.sessionInProgress = false;
 	}
 	
 	public void sendACK(SIPMessage error) {
-		ACKMessage ack = new ACKMessage();
-		InviteMessage invite = ((UserLayerUA)ul).getOutgoingInvite();
 		
-		ArrayList<String> vias = invite.getVias();
-		String destination = invite.getDestination();
-    	String toUri = invite.getToUri();
-   	 	String fromUri = invite.getFromUri();
-   	 	String callId = invite.getCallId();
-   	 	String cSeqNumber = "1";
-   	 	String cSeqStr = "ACK";
+		ACKMessage ack = new ACKMessage();
    	 	
-   	 	ack.setDestination(destination);
+   	 	ack.setDestination(UA.getProxyContact());
+   	 	ack.setVias(UA.getMyVias());
    	 	ack.setCallId(callId);
-	 	ack.setToUri(toUri);
-	 	ack.setFromUri(fromUri);
-	 	ack.setcSeqStr(cSeqStr);
-	 	ack.setcSeqNumber(cSeqNumber);
-	 	ack.setVias(vias);
+	 	ack.setToUri(error.getToUri());
+	 	ack.setFromUri(error.getFromUri());
+	 	ack.setcSeqNumber("1");
+	 	ack.setcSeqStr("ACK");
    	 	
    	 	if(task == null) {
    	 		task = new TimerTask() {
@@ -57,8 +54,8 @@ public class TransactionLayerUA extends TransactionLayer{
 				@Override
 				public void run() {
 					client = ClientStateUA.TERMINATED;
+					currentTransaction = Transaction.NO_TRANSACTION;
 					task = null;
-					ul.recvFromTransaction(error);
 				}
    	 		};
 		
@@ -94,6 +91,8 @@ public class TransactionLayerUA extends TransactionLayer{
 						}
 					}else {
 						client = ClientStateUA.TERMINATED;
+						currentTransaction = Transaction.NO_TRANSACTION;
+						callId = null;
 						task.cancel();
 						task = null;
 					}
@@ -112,37 +111,29 @@ public class TransactionLayerUA extends TransactionLayer{
 		}
 	}
 	
-	public String getCurrentCallID() {
-		return currentCallID;
-	}
-
-	public void setCurrentCallID(String currentCallID) {
-		this.currentCallID = currentCallID;
-	}
-	
-	
-	public InetAddress getAddressProxy() {
-		return addressProxy;
-	}
-
-
-	public void setAddressProxy(InetAddress addressProxy) {
+	public void setProxy(InetAddress addressProxy, int portProxy) {
 		this.addressProxy = addressProxy;
-	}
-
-
-	public int getPortProxy() {
-		return portProxy;
-	}
-
-
-	public void setPortProxy(int portProxy) {
+		this.sessionAddress = addressProxy;
 		this.portProxy = portProxy;
+		this.sessionPort = portProxy;
 	}
 
+	public void setSessionAddress(InetAddress sessionAddress) {
+		this.sessionAddress = sessionAddress;
+	}
+
+	public void setSessionPort(int sessionPort) {
+		this.sessionPort = sessionPort;
+	}
 
 	@Override
 	public void recvFromTransport(SIPMessage message) {
+		
+		if(callId != null) {
+			if(!callId.equals(message.getCallId())) {
+				return;
+			}
+		}
 		
 		switch (currentTransaction) {
 		
@@ -150,29 +141,47 @@ public class TransactionLayerUA extends TransactionLayer{
 				
 				if (message instanceof OKMessage || message instanceof NotFoundMessage) {
 					currentTransaction = Transaction.NO_TRANSACTION;
+					callId = null;
 					ul.recvFromTransaction(message);
 				}
 				
 				break;
 		
 			case INVITE_TRANSACTION:
-				
 				client = client.processMessage(message, this);
-				if (client == ClientStateUA.TERMINATED) {
-					currentTransaction = Transaction.NO_TRANSACTION;
-				}
-				
 				break;
 				
 			case NO_TRANSACTION:
 				
 				if(message instanceof InviteMessage) {
-					//currentCallID=
 					currentTransaction = Transaction.INVITE_TRANSACTION;
+					callId = message.getCallId();
 					server = ServerStateUA.PROCEEDING;
 					server = server.processMessage(message, this);
+				}else if(sessionInProgress && (message instanceof ByeMessage)) {
+					currentTransaction = Transaction.BYE_TRANSACTION;
+					ul.recvFromTransaction(message);
 				}
 				
+				break;
+				
+			case ACK_TRANSACTION:
+				if(message instanceof ACKMessage) {
+					currentTransaction = Transaction.NO_TRANSACTION;
+					sessionInProgress = true;
+					ul.recvFromTransaction(message);
+				}
+				break;
+				
+			case BYE_TRANSACTION:
+				if(message instanceof OKMessage) {
+					currentTransaction = Transaction.NO_TRANSACTION;
+					sessionInProgress = false;
+					callId = null;
+					sessionAddress = addressProxy;
+					sessionPort = portProxy;
+					ul.recvFromTransaction(message);
+				}
 				break;
 				
 			default:
@@ -189,6 +198,7 @@ public class TransactionLayerUA extends TransactionLayer{
 			case REGISTER_TRANSACTION:
 				
 				try {
+					callId = message.getCallId();
 					transportLayer.sendToNetwork(addressProxy, portProxy, message);
 				} catch (IOException e1) {
 					// TODO Auto-generated catch block
@@ -198,21 +208,54 @@ public class TransactionLayerUA extends TransactionLayer{
 				break;
 			
 			case INVITE_TRANSACTION:
-				
 				server = server.processMessage(message, this);
-				if(server == ServerStateUA.TERMINATED){
-					currentTransaction = Transaction.NO_TRANSACTION;
-				}
-				
 				break;
 				
 			case NO_TRANSACTION:
 				
 				if(message instanceof InviteMessage) {
-					//currentCallID =
 					currentTransaction = Transaction.INVITE_TRANSACTION;
+					callId = message.getCallId();
 					client = ClientStateUA.CALLING;
 					client = client.processMessage(message, this);
+				}else if(sessionInProgress && (message instanceof ByeMessage)) {
+					try {
+						currentTransaction = Transaction.BYE_TRANSACTION;
+						sessionInProgress = true;
+						transportLayer.sendToNetwork(sessionAddress, sessionPort, message);
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+				
+				break;
+				
+			case ACK_TRANSACTION:
+				
+				try {
+					currentTransaction = Transaction.NO_TRANSACTION;
+					sessionInProgress = true;
+					transportLayer.sendToNetwork(sessionAddress, sessionPort, message);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+				break;
+				
+			case BYE_TRANSACTION:
+				
+				try {
+					currentTransaction = Transaction.NO_TRANSACTION;
+					sessionInProgress = false;
+					callId = null;
+					transportLayer.sendToNetwork(sessionAddress, sessionPort, message);
+					sessionAddress = addressProxy;
+					sessionPort = portProxy;
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
 				
 				break;
@@ -233,7 +276,6 @@ public class TransactionLayerUA extends TransactionLayer{
 	public void resetLayer() {
 		client = ClientStateUA.TERMINATED;
 		server  = ServerStateUA.TERMINATED;
-		currentCallID = null;
 	}
 
 

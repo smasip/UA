@@ -19,12 +19,12 @@ public enum ClientStateUA {
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
-			}else if (message instanceof TryingMessage || 
-					  message instanceof RingingMessage) {
+			}else if (message instanceof TryingMessage || message instanceof RingingMessage) {
 				System.out.println("CALLING -> PROCEEDING");
 				return PROCEEDING;
 			}else if (message instanceof OKMessage) {
 				System.out.println("CALLING -> TERMINATED");
+				((TransactionLayerUA) tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
 				tl.sendToUser(message);
 				return TERMINATED;
 			}else if (message instanceof NotFoundMessage || 
@@ -45,12 +45,12 @@ public enum ClientStateUA {
 		@Override
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
 		
-			if (message instanceof TryingMessage || 
-			    message instanceof RingingMessage) {
+			if (message instanceof TryingMessage || message instanceof RingingMessage) {
 				System.out.println("PROCEEDING -> PROCEEDING");
 				return this;
 			}else if (message instanceof OKMessage) {
 				System.out.println("PROCEEDING -> TERMINATED");
+				((TransactionLayerUA)tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
 				tl.sendToUser(message);
 				return TERMINATED;
 			}else if (message instanceof NotFoundMessage || 
@@ -76,7 +76,7 @@ public enum ClientStateUA {
 				message instanceof BusyHereMessage ||
 				message instanceof ServiceUnavailableMessage)
 			{
-				System.out.println("COMPLETED -> TERMINATED");
+				System.out.println("COMPLETED -> COMPLETED");
 				tl.sendACK(message);
 			}
 				return this;
