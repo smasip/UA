@@ -34,8 +34,17 @@ public class TransactionLayerUA extends TransactionLayer{
 		this.timer = new Timer();
 		this.task = null;
 		this.sessionInProgress = false;
+		this.callId = null;
 	}
 	
+
+	public void setCurrentTransaction(Transaction currentTransaction) {
+		this.currentTransaction = currentTransaction;
+		if(currentTransaction == Transaction.NO_TRANSACTION) {
+			callId = null;
+		}
+	}
+
 	public void sendACK(SIPMessage error) {
 		
 		ACKMessage ack = new ACKMessage();
