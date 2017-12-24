@@ -56,16 +56,22 @@ public class TransactionLayerUA extends TransactionLayer{
 	 	ack.setFromUri(error.getFromUri());
 	 	ack.setcSeqNumber("1");
 	 	ack.setcSeqStr("ACK");
+	 	
+	 	sendToTransportProxy(ack);
    	 	
    	 	if(task == null) {
+   	 		
+   	 		ul.recvFromTransaction(error);
    	 		
    	 		task = new TimerTask() {
 			
 				@Override
-				public void run() {
+				public void run() { 
+					System.out.println("CLIENT: COMPLETED -> TERMINATED");
 					client = ClientStateUA.TERMINATED;
 					currentTransaction = Transaction.NO_TRANSACTION;
-					System.out.println("COMPLETED -> TERMINATED");
+					callId = null;
+					task.cancel();
 					task = null;
 				}
 				
@@ -74,7 +80,6 @@ public class TransactionLayerUA extends TransactionLayer{
 			timer.schedule(task, 1000);
    	 	}
    	 	
-   	 	sendToTransportProxy(ack);
 		
 	}
 	
@@ -88,10 +93,11 @@ public class TransactionLayerUA extends TransactionLayer{
 			
 				@Override
 				public void run() {
-					if(numTimes <= 4) {
+					if(numTimes < 4) {
 						sendToTransportProxy(error);
 						numTimes++;
 					}else {
+						System.out.println("SERVER: COMPLETED -> TERMINATED");
 						client = ClientStateUA.TERMINATED;
 						currentTransaction = Transaction.NO_TRANSACTION;
 						callId = null;
@@ -151,7 +157,13 @@ public class TransactionLayerUA extends TransactionLayer{
 				break;
 		
 			case INVITE_TRANSACTION:
-				client = client.processMessage(message, this);
+				
+				if(message instanceof ACKMessage) {
+					server = server.processMessage(message, this);
+				}else {
+					client = client.processMessage(message, this);
+				}
+				
 				break;
 				
 			case NO_TRANSACTION:

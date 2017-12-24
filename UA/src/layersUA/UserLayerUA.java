@@ -23,7 +23,6 @@ public class UserLayerUA extends UserLayer{
 	private String route;
 	private boolean successfulRegister;
 	
-	
 	public UserLayerUA() {
 		super();
 		this.callInProgress = false;
@@ -37,7 +36,31 @@ public class UserLayerUA extends UserLayer{
 		this.timer = new Timer();
 	}
 
-
+	private void setSession(SIPMessage message) {
+		String[] s;
+		
+		if(route == null) {
+			
+			if(message instanceof OKMessage) {
+				s = ((OKMessage)message).getContact().split("@")[1].split(":");
+			}else if(message instanceof InviteMessage) {
+				s = ((InviteMessage)message).getContact().split("@")[1].split(":");
+			}else {
+				s = null;
+			}
+			
+			try {
+				((TransactionLayerUA)transactionLayer).setSessionAddress(InetAddress.getByName(s[0]));
+				((TransactionLayerUA)transactionLayer).setSessionPort(Integer.valueOf(s[1]));
+			} catch (UnknownHostException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+		}
+	}
+	
+	
 	@Override
 	public synchronized void recvFromTransaction(SIPMessage message) {
 		
@@ -74,20 +97,15 @@ public class UserLayerUA extends UserLayer{
 					sessionACK.setcSeqStr("ACK");
 					sessionACK.setContentLength(0);
 					
-					if(route == null) {
-						String[] s = ((OKMessage)message).getContact().split("@")[1].split(":");
-						try {
-							((TransactionLayerUA)transactionLayer).setSessionAddress(InetAddress.getByName(s[0]));
-							((TransactionLayerUA)transactionLayer).setSessionPort(Integer.valueOf(s[1]));
-						} catch (UnknownHostException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-					}
+					setSession(message);
 					
 					((TransactionLayerUA)transactionLayer).recvFromUser(sessionACK);
 					
-				}else if(message instanceof BusyHereMessage) {
+				}else if(message instanceof NotFoundMessage ||
+						 message instanceof RequestTimeoutMessage ||
+						 message instanceof BusyHereMessage ||
+						 message instanceof ServiceUnavailableMessage) 
+				{
 					
 					currentTrasaction = Transaction.NO_TRANSACTION;
 					callInProgress = false;
@@ -129,6 +147,8 @@ public class UserLayerUA extends UserLayer{
 					callId = inboudInvite.getCallId();
 					toURI = inboudInvite.getFromUri();
 					
+					
+					
 					task = new TimerTask() {
 						
 						int numTimes = 0;
@@ -138,7 +158,7 @@ public class UserLayerUA extends UserLayer{
 							
 							if(isRinging) {
 								
-								if(numTimes < 5) {
+								if(numTimes < 4) {
 									RingingMessage ringing = (RingingMessage) SIPMessage.createResponse(
 											SIPMessage._180_RINGING, inboudInvite, UA.getContact());
 									((TransactionLayerUA)transactionLayer).recvFromUser(ringing);
@@ -254,6 +274,7 @@ public class UserLayerUA extends UserLayer{
 						SIPMessage._200_OK, inboudInvite, UA.getContact());
 			
 				currentTrasaction = Transaction.ACK_TRANSACTION;
+				setSession(inboudInvite);
 				inboudInvite = null;
 				
 				((TransactionLayerUA)transactionLayer).recvFromUser(ok);

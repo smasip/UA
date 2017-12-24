@@ -24,11 +24,11 @@ public enum ServerStateUA {
 		public ServerStateUA processMessage(SIPMessage message, TransactionLayer tl) {
 			
 			if (message instanceof InviteMessage) {
-				System.out.println("PROCEEDING -> PROCEEDING");
+				System.out.println("SERVER: PROCEEDING -> PROCEEDING");
 				tl.sendToUser(message);
 				return this;
 			}else if (message instanceof RingingMessage) {
-				System.out.println("PROCEEDING -> PROCEEDING");
+				System.out.println("SERVER: PROCEEDING -> PROCEEDING");
 				((TransactionLayerUA) tl).sendToTransportProxy(message);
 				return this;
 			}else if (message instanceof NotFoundMessage || 
@@ -37,11 +37,11 @@ public enum ServerStateUA {
 					  message instanceof BusyHereMessage ||
 					  message instanceof ServiceUnavailableMessage) 
 			{
-				System.out.println("PROCEEDING -> COMPLETED");
+				System.out.println("SERVER: PROCEEDING -> COMPLETED");
 				tl.sendError(message);
 				return COMPLETED;
 			}else if (message instanceof OKMessage) {
-				System.out.println("PROCEEDING -> TERMINATED");
+				System.out.println("SERVER: PROCEEDING -> TERMINATED");
 				((TransactionLayerUA) tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
 				((TransactionLayerUA) tl).sendToTransportProxy(message);
 			}
@@ -54,7 +54,7 @@ public enum ServerStateUA {
 		public ServerStateUA processMessage(SIPMessage message, TransactionLayer tl) {
 			
 			if(message instanceof ACKMessage) {
-				System.out.println("COMPLETED -> TERMINATED");
+				System.out.println("SERVER: COMPLETED -> TERMINATED");
 				((TransactionLayerUA) tl).setCurrentTransaction(Transaction.NO_TRANSACTION);
 				tl.cancelTimer();
 				return TERMINATED;

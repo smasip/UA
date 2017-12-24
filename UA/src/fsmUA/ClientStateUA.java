@@ -12,14 +12,14 @@ public enum ClientStateUA {
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
 		
 			if(message instanceof InviteMessage) {
-				System.out.println("CALLING -> CALLING");
+				System.out.println("CLIENT: CALLING -> CALLING");
 				((TransactionLayerUA) tl).sendToTransportProxy(message);
 				return this;
 			}else if (message instanceof TryingMessage || message instanceof RingingMessage) {
-				System.out.println("CALLING -> PROCEEDING");
+				System.out.println("CLIENT: CALLING -> PROCEEDING");
 				return PROCEEDING;
 			}else if (message instanceof OKMessage) {
-				System.out.println("CALLING -> TERMINATED");
+				System.out.println("CLIENT: CALLING -> TERMINATED");
 				((TransactionLayerUA) tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
 				tl.sendToUser(message);
 				return TERMINATED;
@@ -29,7 +29,7 @@ public enum ClientStateUA {
 					  message instanceof BusyHereMessage ||
 					  message instanceof ServiceUnavailableMessage) 
 			{
-				System.out.println("CALLING -> COMPLETED");
+				System.out.println("CLIENT: CALLING -> COMPLETED");
 				tl.sendACK(message);
 				return COMPLETED;
 			}
@@ -42,10 +42,10 @@ public enum ClientStateUA {
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
 		
 			if (message instanceof TryingMessage || message instanceof RingingMessage) {
-				System.out.println("PROCEEDING -> PROCEEDING");
+				System.out.println("CLIENT: PROCEEDING -> PROCEEDING");
 				return this;
 			}else if (message instanceof OKMessage) {
-				System.out.println("PROCEEDING -> TERMINATED");
+				System.out.println("CLIENT: PROCEEDING -> TERMINATED");
 				((TransactionLayerUA)tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
 				tl.sendToUser(message);
 				return TERMINATED;
@@ -55,7 +55,7 @@ public enum ClientStateUA {
 					  message instanceof BusyHereMessage ||
 					  message instanceof ServiceUnavailableMessage) 
 			{
-				System.out.println("PROCEEDING -> COMPLETED");
+				System.out.println("CLIENT: PROCEEDING -> COMPLETED");
 				tl.sendACK(message);
 				return COMPLETED;
 			}
