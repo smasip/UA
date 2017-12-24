@@ -60,7 +60,7 @@ public class UA {
 		registerMessage.setMaxForwards(70);
 		registerMessage.setToUri(getMyURI());
 		registerMessage.setFromUri(getMyURI());
-		registerMessage.setCallId(Integer.toString(123456789) + "@localhost");
+		registerMessage.setCallId(Integer.toString(123456789) + "@dominio.es");
 		registerMessage.setcSeqNumber("1234");
 		registerMessage.setcSeqStr("REGISTER");
 		registerMessage.setContact(getContact());
@@ -80,7 +80,7 @@ public class UA {
 		invite.setMaxForwards(70);
 		invite.setToUri(createURI(callee));
 		invite.setFromUri(getMyURI());
-		invite.setCallId(Integer.toString(123456789) + "@localhost");
+		invite.setCallId(Integer.toString(123456789) + "@dominio.es");
 		invite.setcSeqNumber("1234");
 		invite.setcSeqStr("INVITE");
 		invite.setContact(getContact());
@@ -160,7 +160,6 @@ public class UA {
 		
 		try {
 			myAddress = InetAddress.getByName("localhost");
-			System.out.println(myAddress.getHostAddress());
 		} catch (UnknownHostException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

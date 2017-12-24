@@ -20,7 +20,6 @@ public class UserLayerUA extends UserLayer{
 	private InviteMessage inboudInvite;
 	private String callId;
 	private String toURI;
-	private String destination;
 	private String route;
 	private boolean successfulRegister;
 	
@@ -33,7 +32,6 @@ public class UserLayerUA extends UserLayer{
 		this.inboudInvite = null;
 		this.callId = null;
 		this.toURI = null;
-		this.destination = null;
 		this.route = null;
 		this.successfulRegister = false;
 		this.timer = new Timer();
@@ -65,7 +63,7 @@ public class UserLayerUA extends UserLayer{
 					route = ((OKMessage)message).getRecordRoute();
 					ACKMessage sessionACK = new ACKMessage();
 					
-					sessionACK.setDestination(destination);
+					sessionACK.setDestination(toURI);
 					sessionACK.setVias(UA.getMyVias());
 					sessionACK.setToUri(toURI);
 					sessionACK.setFromUri(UA.getMyURI());
@@ -93,12 +91,8 @@ public class UserLayerUA extends UserLayer{
 					
 					currentTrasaction = Transaction.NO_TRANSACTION;
 					callInProgress = false;
-					inboudInvite = null;
-					destination = null;
 					callId = null;
 					toURI = null;
-					destination = null;
-					route = null;
 					
 				}
 				
@@ -106,7 +100,24 @@ public class UserLayerUA extends UserLayer{
 				
 			case NO_TRANSACTION:
 				
-				if(message instanceof InviteMessage) {
+				if(callInProgress) {
+					
+					if(message.getCallId().equals(callId)) {
+						if(message instanceof ByeMessage) {
+							callInProgress = false;
+							callId = null;
+							toURI = null;
+							route = null;
+							OKMessage okBye = (OKMessage) SIPMessage.createResponse(SIPMessage._200_OK, message, UA.getContact());
+							((TransactionLayerUA)transactionLayer).recvFromUser(okBye);
+						}
+					}else {
+						ServiceUnavailableMessage serviceUnavailable = (ServiceUnavailableMessage) SIPMessage.createResponse(
+								SIPMessage._503_SERVICE_UNABAILABLE, message);
+						((TransactionLayerUA)transactionLayer).recvFromUser(serviceUnavailable);
+					}
+					
+				}else if(message instanceof InviteMessage) {
 					
 					System.out.println("Ringing !!! Please hit S to accept or N to reject ...");
 					
@@ -116,8 +127,7 @@ public class UserLayerUA extends UserLayer{
 					inboudInvite = (InviteMessage) message;
 					route = inboudInvite.getRecordRoute();
 					callId = inboudInvite.getCallId();
-					toURI = inboudInvite.getToUri();
-					destination = inboudInvite.getDestination();
+					toURI = inboudInvite.getFromUri();
 					
 					task = new TimerTask() {
 						
@@ -144,7 +154,6 @@ public class UserLayerUA extends UserLayer{
 									inboudInvite = null;
 									callId = null;
 									toURI = null;
-									destination = null;
 									route = null;
 									task.cancel();
 									task = null;	
@@ -163,6 +172,22 @@ public class UserLayerUA extends UserLayer{
 					
 				}
 				
+				break;
+				
+			case ACK_TRANSACTION:
+				if(message instanceof ACKMessage) {
+					currentTrasaction = Transaction.NO_TRANSACTION;
+				}
+				break;
+				
+			case BYE_TRANSACTION:
+				if(message instanceof OKMessage) {
+					currentTrasaction = Transaction.NO_TRANSACTION;
+					callInProgress = false;
+					callId = null;
+					toURI = null;
+					route = null;
+				}
 				break;
 	
 			default:
@@ -197,12 +222,12 @@ public class UserLayerUA extends UserLayer{
 			
 			if(command[0].equals("BYE")) {
 				
-				if(callInProgress) {
+				if(callInProgress ) {
 					
 					System.out.println("Hanging out ...");
 					currentTrasaction = Transaction.BYE_TRANSACTION;
 					ByeMessage bye = new ByeMessage();
-					bye.setDestination(destination);
+					bye.setDestination(toURI);
 					bye.setVias(UA.getMyVias());
 					bye.setFromUri(UA.getMyURI());
 					bye.setToUri(toURI);
@@ -228,7 +253,7 @@ public class UserLayerUA extends UserLayer{
 				OKMessage ok = (OKMessage) SIPMessage.createResponse(
 						SIPMessage._200_OK, inboudInvite, UA.getContact());
 			
-				currentTrasaction = Transaction.NO_TRANSACTION;
+				currentTrasaction = Transaction.ACK_TRANSACTION;
 				inboudInvite = null;
 				
 				((TransactionLayerUA)transactionLayer).recvFromUser(ok);
@@ -249,7 +274,6 @@ public class UserLayerUA extends UserLayer{
 				inboudInvite = null;
 				callId = null;
 				toURI = null;
-				destination = null;
 				route = null;
 				
 				((TransactionLayerUA)transactionLayer).recvFromUser(busy);

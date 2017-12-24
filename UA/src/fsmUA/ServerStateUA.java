@@ -29,11 +29,7 @@ public enum ServerStateUA {
 				return this;
 			}else if (message instanceof RingingMessage) {
 				System.out.println("PROCEEDING -> PROCEEDING");
-				try {
-					((TransactionLayerUA) tl).sendToTransport(message);
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
+				((TransactionLayerUA) tl).sendToTransportProxy(message);
 				return this;
 			}else if (message instanceof NotFoundMessage || 
 					  message instanceof ProxyAuthenticationMessage ||
@@ -46,13 +42,8 @@ public enum ServerStateUA {
 				return COMPLETED;
 			}else if (message instanceof OKMessage) {
 				System.out.println("PROCEEDING -> TERMINATED");
-				try {
-					((TransactionLayerUA) tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
-					((TransactionLayerUA) tl).sendToTransport(message);
-					return TERMINATED;
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
+				((TransactionLayerUA) tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
+				((TransactionLayerUA) tl).sendToTransportProxy(message);
 			}
 			return this;
 		}

@@ -49,7 +49,7 @@ public class TransactionLayerUA extends TransactionLayer{
 		
 		ACKMessage ack = new ACKMessage();
    	 	
-   	 	ack.setDestination(UA.getProxyContact());
+   	 	ack.setDestination("sip:proxy@dominio.es");
    	 	ack.setVias(UA.getMyVias());
    	 	ack.setCallId(callId);
 	 	ack.setToUri(error.getToUri());
@@ -58,25 +58,23 @@ public class TransactionLayerUA extends TransactionLayer{
 	 	ack.setcSeqStr("ACK");
    	 	
    	 	if(task == null) {
+   	 		
    	 		task = new TimerTask() {
 			
 				@Override
 				public void run() {
 					client = ClientStateUA.TERMINATED;
 					currentTransaction = Transaction.NO_TRANSACTION;
+					System.out.println("COMPLETED -> TERMINATED");
 					task = null;
 				}
+				
    	 		};
 		
 			timer.schedule(task, 1000);
    	 	}
    	 	
-   	 	try {
-			sendToTransport(ack);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+   	 	sendToTransportProxy(ack);
 		
 	}
 	
@@ -91,13 +89,8 @@ public class TransactionLayerUA extends TransactionLayer{
 				@Override
 				public void run() {
 					if(numTimes <= 4) {
-						try {
-							transportLayer.sendToNetwork(addressProxy, portProxy, error);
-							numTimes++;
-						} catch (IOException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
+						sendToTransportProxy(error);
+						numTimes++;
 					}else {
 						client = ClientStateUA.TERMINATED;
 						currentTransaction = Transaction.NO_TRANSACTION;
@@ -106,6 +99,7 @@ public class TransactionLayerUA extends TransactionLayer{
 						task = null;
 					}
 				}
+				
    	 		};
 		
 			timer.schedule(task, 200);
@@ -162,7 +156,7 @@ public class TransactionLayerUA extends TransactionLayer{
 				
 			case NO_TRANSACTION:
 				
-				if(message instanceof InviteMessage) {
+				if(!sessionInProgress && (message instanceof InviteMessage)) {
 					currentTransaction = Transaction.INVITE_TRANSACTION;
 					callId = message.getCallId();
 					server = ServerStateUA.PROCEEDING;
@@ -205,15 +199,8 @@ public class TransactionLayerUA extends TransactionLayer{
 		switch (currentTransaction) {
 		
 			case REGISTER_TRANSACTION:
-				
-				try {
-					callId = message.getCallId();
-					transportLayer.sendToNetwork(addressProxy, portProxy, message);
-				} catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				}
-				
+				callId = message.getCallId();
+				sendToTransportProxy(message);
 				break;
 			
 			case INVITE_TRANSACTION:
@@ -227,46 +214,26 @@ public class TransactionLayerUA extends TransactionLayer{
 					callId = message.getCallId();
 					client = ClientStateUA.CALLING;
 					client = client.processMessage(message, this);
-				}else if(sessionInProgress && (message instanceof ByeMessage)) {
-					try {
-						currentTransaction = Transaction.BYE_TRANSACTION;
-						sessionInProgress = true;
-						transportLayer.sendToNetwork(sessionAddress, sessionPort, message);
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
+				}else if(message instanceof ByeMessage) {
+					currentTransaction = Transaction.BYE_TRANSACTION;
+					sendToTransportSession(message);		
 				}
 				
 				break;
 				
 			case ACK_TRANSACTION:
-				
-				try {
-					currentTransaction = Transaction.NO_TRANSACTION;
-					sessionInProgress = true;
-					transportLayer.sendToNetwork(sessionAddress, sessionPort, message);
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				
+				currentTransaction = Transaction.NO_TRANSACTION;
+				sessionInProgress = true;
+				sendToTransportSession(message);
 				break;
 				
 			case BYE_TRANSACTION:
-				
-				try {
-					currentTransaction = Transaction.NO_TRANSACTION;
-					sessionInProgress = false;
-					callId = null;
-					transportLayer.sendToNetwork(sessionAddress, sessionPort, message);
-					sessionAddress = addressProxy;
-					sessionPort = portProxy;
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				
+				currentTransaction = Transaction.NO_TRANSACTION;
+				sessionInProgress = false;
+				callId = null;
+				sendToTransportSession(message);
+				sessionAddress = addressProxy;
+				sessionPort = portProxy;
 				break;
 				
 			default:
@@ -277,8 +244,22 @@ public class TransactionLayerUA extends TransactionLayer{
 		
 	}
 	
-	public void sendToTransport(SIPMessage message) throws IOException {
-		transportLayer.sendToNetwork(addressProxy, portProxy, message);
+	public void sendToTransportProxy(SIPMessage message){
+		try {
+			transportLayer.sendToNetwork(addressProxy, portProxy, message);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	public void sendToTransportSession(SIPMessage message){
+		try {
+			transportLayer.sendToNetwork(sessionAddress, sessionPort, message);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	
 	

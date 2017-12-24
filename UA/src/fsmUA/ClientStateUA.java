@@ -12,13 +12,9 @@ public enum ClientStateUA {
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
 		
 			if(message instanceof InviteMessage) {
-				try {
-					System.out.println("CALLING -> CALLING");
-					((TransactionLayerUA) tl).sendToTransport(message);
-					return this;
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
+				System.out.println("CALLING -> CALLING");
+				((TransactionLayerUA) tl).sendToTransportProxy(message);
+				return this;
 			}else if (message instanceof TryingMessage || message instanceof RingingMessage) {
 				System.out.println("CALLING -> PROCEEDING");
 				return PROCEEDING;
@@ -76,7 +72,6 @@ public enum ClientStateUA {
 				message instanceof BusyHereMessage ||
 				message instanceof ServiceUnavailableMessage)
 			{
-				System.out.println("COMPLETED -> COMPLETED");
 				tl.sendACK(message);
 			}
 				return this;
