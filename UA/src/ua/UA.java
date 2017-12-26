@@ -19,7 +19,7 @@ public class UA {
 	
 	private static DatagramSocket datagramSocket;
 	public static InetAddress myAddress;
-	private static InetAddress IPProxy;
+	public static InetAddress IPProxy;
 	public static int puertoEscuchaUA;
 	public static int puertoEscuchaProxy;
 	private static boolean debug;
@@ -173,7 +173,6 @@ public class UA {
 		
 		transactionLayer.setTransportLayer(transportLayer);
 		transactionLayer.setUl(ul);
-		transactionLayer.setProxy(IPProxy, puertoEscuchaProxy);
 		
 		transportLayer.setTransactionLayer(transactionLayer);
 		transportLayer.setDatagramSocket(datagramSocket);

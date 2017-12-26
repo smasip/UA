@@ -11,7 +11,6 @@ import mensajesSIP.*;
 
 public class UserLayerUA extends UserLayer{
 	
-	
 	private boolean callInProgress;
 	private boolean isRinging;
 	private Transaction currentTrasaction;
@@ -22,6 +21,8 @@ public class UserLayerUA extends UserLayer{
 	private String toURI;
 	private String route;
 	private boolean successfulRegister;
+	private InetAddress sessionAddress;
+	private int sessionPort;
 	
 	public UserLayerUA() {
 		super();
@@ -50,14 +51,19 @@ public class UserLayerUA extends UserLayer{
 			}
 			
 			try {
-				((TransactionLayerUA)transactionLayer).setSessionAddress(InetAddress.getByName(s[0]));
-				((TransactionLayerUA)transactionLayer).setSessionPort(Integer.valueOf(s[1]));
+				sessionAddress = InetAddress.getByName(s[0]);
+				sessionPort = Integer.valueOf(s[1]);
 			} catch (UnknownHostException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 			
+		}else {
+			sessionAddress = UA.IPProxy;
+			sessionPort = UA.puertoEscuchaProxy;
 		}
+		
+		
 	}
 	
 	
@@ -99,7 +105,7 @@ public class UserLayerUA extends UserLayer{
 					
 					setSession(message);
 					
-					((TransactionLayerUA)transactionLayer).recvFromUser(sessionACK);
+					transactionLayer.recvRequestFromUser(sessionACK, sessionAddress, sessionPort);
 					
 				}else if(message instanceof NotFoundMessage ||
 						 message instanceof RequestTimeoutMessage ||
@@ -127,12 +133,12 @@ public class UserLayerUA extends UserLayer{
 							toURI = null;
 							route = null;
 							OKMessage okBye = (OKMessage) SIPMessage.createResponse(SIPMessage._200_OK, message, UA.getContact());
-							((TransactionLayerUA)transactionLayer).recvFromUser(okBye);
+							transactionLayer.recvResponseFromUser(okBye);
 						}
 					}else {
 						ServiceUnavailableMessage serviceUnavailable = (ServiceUnavailableMessage) SIPMessage.createResponse(
 								SIPMessage._503_SERVICE_UNABAILABLE, message);
-						((TransactionLayerUA)transactionLayer).recvFromUser(serviceUnavailable);
+						transactionLayer.recvResponseFromUser(serviceUnavailable);
 					}
 					
 				}else if(message instanceof InviteMessage) {
@@ -147,8 +153,6 @@ public class UserLayerUA extends UserLayer{
 					callId = inboudInvite.getCallId();
 					toURI = inboudInvite.getFromUri();
 					
-					
-					
 					task = new TimerTask() {
 						
 						int numTimes = 0;
@@ -161,7 +165,7 @@ public class UserLayerUA extends UserLayer{
 								if(numTimes < 4) {
 									RingingMessage ringing = (RingingMessage) SIPMessage.createResponse(
 											SIPMessage._180_RINGING, inboudInvite, UA.getContact());
-									((TransactionLayerUA)transactionLayer).recvFromUser(ringing);
+									transactionLayer.recvResponseFromUser(ringing);
 									numTimes++;
 								}else {
 									
@@ -178,7 +182,7 @@ public class UserLayerUA extends UserLayer{
 									task.cancel();
 									task = null;	
 									
-									((TransactionLayerUA)transactionLayer).recvFromUser(requestTimeout);
+									transactionLayer.recvResponseFromUser(requestTimeout);
 									
 								}
 								
@@ -234,7 +238,7 @@ public class UserLayerUA extends UserLayer{
 				callId = outgoingInvite.getCallId();
 				toURI = outgoingInvite.getToUri();
 				
-				((TransactionLayerUA)transactionLayer).recvFromUser(outgoingInvite);
+				transactionLayer.recvRequestFromUser(outgoingInvite, UA.IPProxy, UA.puertoEscuchaProxy);
 				
 			}
 			
@@ -256,7 +260,7 @@ public class UserLayerUA extends UserLayer{
 					bye.setcSeqStr("BYE");
 					bye.setContentLength(0);
 					
-					((TransactionLayerUA)transactionLayer).recvFromUser(bye);
+					transactionLayer.recvRequestFromUser(bye, sessionAddress, sessionPort);
 					
 				}else {
 					System.out.println("Command failed. No call to terminate");
@@ -274,10 +278,11 @@ public class UserLayerUA extends UserLayer{
 						SIPMessage._200_OK, inboudInvite, UA.getContact());
 			
 				currentTrasaction = Transaction.ACK_TRANSACTION;
+				
 				setSession(inboudInvite);
 				inboudInvite = null;
 				
-				((TransactionLayerUA)transactionLayer).recvFromUser(ok);
+				transactionLayer.recvResponseFromUser(ok);
 				
 			}else if(command[0].equals("N") && isRinging) {
 				
@@ -297,7 +302,7 @@ public class UserLayerUA extends UserLayer{
 				toURI = null;
 				route = null;
 				
-				((TransactionLayerUA)transactionLayer).recvFromUser(busy);
+				transactionLayer.recvResponseFromUser(busy);
 				
 			}else{
 				System.out.println("Please hit S to accept or N to reject ...");
@@ -317,7 +322,7 @@ public class UserLayerUA extends UserLayer{
 			public void run() {
 				// TODO Auto-generated method stub
 				RegisterMessage register = UA.createRegister();
-				((TransactionLayerUA)transactionLayer).recvFromUser(register);
+				transactionLayer.recvRequestFromUser(register, UA.IPProxy, UA.puertoEscuchaProxy);
 			}
 		};
 		

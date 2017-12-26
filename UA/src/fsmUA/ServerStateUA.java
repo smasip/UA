@@ -1,7 +1,5 @@
 package fsmUA;
 
-import java.io.IOException;
-
 import layers.*;
 import layersUA.TransactionLayerUA;
 import mensajesSIP.ACKMessage;
@@ -14,7 +12,6 @@ import mensajesSIP.RequestTimeoutMessage;
 import mensajesSIP.RingingMessage;
 import mensajesSIP.SIPMessage;
 import mensajesSIP.ServiceUnavailableMessage;
-import mensajesSIP.TryingMessage;
 
 public enum ServerStateUA {
 	
@@ -23,13 +20,9 @@ public enum ServerStateUA {
 		@Override
 		public ServerStateUA processMessage(SIPMessage message, TransactionLayer tl) {
 			
-			if (message instanceof InviteMessage) {
+			if (message instanceof RingingMessage) {
 				System.out.println("SERVER: PROCEEDING -> PROCEEDING");
-				tl.sendToUser(message);
-				return this;
-			}else if (message instanceof RingingMessage) {
-				System.out.println("SERVER: PROCEEDING -> PROCEEDING");
-				((TransactionLayerUA) tl).sendToTransportProxy(message);
+				tl.sendResponse(message);
 				return this;
 			}else if (message instanceof NotFoundMessage || 
 					  message instanceof ProxyAuthenticationMessage ||
@@ -42,8 +35,9 @@ public enum ServerStateUA {
 				return COMPLETED;
 			}else if (message instanceof OKMessage) {
 				System.out.println("SERVER: PROCEEDING -> TERMINATED");
-				((TransactionLayerUA) tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
-				((TransactionLayerUA) tl).sendToTransportProxy(message);
+				((TransactionLayerUA) tl).setCurrentTransaction(Transaction.NO_TRANSACTION);
+				tl.sendResponse(message);
+				return TERMINATED;
 			}
 			return this;
 		}
@@ -68,6 +62,11 @@ public enum ServerStateUA {
 	TERMINATED{
 		@Override
 		public ServerStateUA processMessage(SIPMessage message, TransactionLayer tl) {
+			if (message instanceof InviteMessage) {
+				System.out.println("SERVER: TERMINATED -> PROCEEDING");
+				tl.sendToUser(message);
+				return PROCEEDING;
+			}
 			return this;
 		}
 		

@@ -11,11 +11,7 @@ public enum ClientStateUA {
 		@Override
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
 		
-			if(message instanceof InviteMessage) {
-				System.out.println("CLIENT: CALLING -> CALLING");
-				((TransactionLayerUA) tl).sendToTransportProxy(message);
-				return this;
-			}else if (message instanceof TryingMessage || message instanceof RingingMessage) {
+			if (message instanceof TryingMessage || message instanceof RingingMessage) {
 				System.out.println("CLIENT: CALLING -> PROCEEDING");
 				return PROCEEDING;
 			}else if (message instanceof OKMessage) {
@@ -46,7 +42,7 @@ public enum ClientStateUA {
 				return this;
 			}else if (message instanceof OKMessage) {
 				System.out.println("CLIENT: PROCEEDING -> TERMINATED");
-				((TransactionLayerUA)tl).setCurrentTransaction(Transaction.ACK_TRANSACTION);
+				((TransactionLayerUA)tl).setCurrentTransaction(Transaction.NO_TRANSACTION);
 				tl.sendToUser(message);
 				return TERMINATED;
 			}else if (message instanceof NotFoundMessage || 
@@ -81,6 +77,11 @@ public enum ClientStateUA {
 	TERMINATED{
 		@Override
 		public ClientStateUA processMessage(SIPMessage message, TransactionLayer tl) {
+			if(message instanceof InviteMessage) {
+				System.out.println("CLIENT: TERMINATED -> CALLING");
+				tl.sendRequest(message);
+				return CALLING;
+			}
 			return this;
 		}
 		
