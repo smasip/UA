@@ -1,116 +1,37 @@
 package layersUA;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Timer;
-import java.util.TimerTask;
 
-import fsmUA.*;
+import fsm.*;
 import layers.*;
 import mensajesSIP.*;
 import ua.UA;
 
 public class TransactionLayerUA extends TransactionLayer{
-	
-	ClientStateUA client;
-	ServerStateUA server;
-	Transaction currentTransaction;
-	private Timer timer;
-	private TimerTask task;
-	private String callId;
-	
+
 	public TransactionLayerUA() {
 		super();
-		this.client = ClientStateUA.TERMINATED;
-		this.server = ServerStateUA.TERMINATED;
 		this.currentTransaction = Transaction.NO_TRANSACTION;
-		this.timer = new Timer();
-		this.task = null;
 		this.callId = null;
+		this.destination =  UA.createURI("proxy");
+		this.myVias = UA.getMyVias();
+		this.client = new ClientFSM(this);
+		this.server = new ServerFSM(this) {
+			
+			@Override
+			public void onInvite(InviteMessage invite) {
+				transactionLayer.sendToUser(invite);	
+			}
+		};
 	}
 	
 
-	public void setCurrentTransaction(Transaction currentTransaction) {
-		this.currentTransaction = currentTransaction;
-		if(currentTransaction == Transaction.NO_TRANSACTION) {
+	@Override
+	public void resetLayer() {
+		if(client.isTerminated() && server.isTerminated() && (currentTransaction == Transaction.INVITE_TRANSACTION)) {
+			currentTransaction = Transaction.NO_TRANSACTION;
 			callId = null;
-		}
-	}
-
-	public void sendACK(SIPMessage error) {
-		
-		ACKMessage ack = new ACKMessage();
-   	 	
-   	 	ack.setDestination("sip:proxy@dominio.es");
-   	 	ack.setVias(UA.getMyVias());
-   	 	ack.setCallId(callId);
-	 	ack.setToUri(error.getToUri());
-	 	ack.setFromUri(error.getFromUri());
-	 	ack.setcSeqNumber("1");
-	 	ack.setcSeqStr("ACK");
-	 	
-	 	sendRequest(ack);
-   	 	
-   	 	if(task == null) {
-   	 		
-   	 		ul.recvFromTransaction(error);
-   	 		
-   	 		task = new TimerTask() {
-			
-				@Override
-				public void run() { 
-					System.out.println("CLIENT: COMPLETED -> TERMINATED");
-					client = ClientStateUA.TERMINATED;
-					currentTransaction = Transaction.NO_TRANSACTION;
-					callId = null;
-					task.cancel();
-					task = null;
-				}
-				
-   	 		};
-		
-			timer.schedule(task, 1000);
-   	 	}
-   	 	
-		
-	}
-	
-	public void sendError(SIPMessage error) {
-		
-		if(task == null) {
-			
-   	 		task = new TimerTask() {
-   	 			
-   	 			int numTimes = 0;
-			
-				@Override
-				public void run() {
-					if(numTimes < 4) {
-						sendResponse(error);
-						numTimes++;
-					}else {
-						System.out.println("SERVER: COMPLETED -> TERMINATED");
-						client = ClientStateUA.TERMINATED;
-						currentTransaction = Transaction.NO_TRANSACTION;
-						callId = null;
-						task.cancel();
-						task = null;
-					}
-				}
-				
-   	 		};
-		
-			timer.schedule(task, 200);
-   	 	}
-		
-	}
-	
-	public void cancelTimer() {
-		if(task != null) {
-			task.cancel();
-			task = null;
 		}
 	}
 	
@@ -120,23 +41,14 @@ public class TransactionLayerUA extends TransactionLayer{
 		
 		switch (currentTransaction) {
 		
-			case REGISTER_TRANSACTION:
-				
-				if (message instanceof OKMessage || message instanceof NotFoundMessage) {
-					currentTransaction = Transaction.NO_TRANSACTION;
-					callId = null;
-					ul.recvFromTransaction(message);
-				}
-				
-				break;
-		
 			case INVITE_TRANSACTION:
 				
 				if(message instanceof ACKMessage) {
-					server = server.processMessage(message, this);
+					server.processMessage(message);
 				}else {
-					client = client.processMessage(message, this);
+					client.processMessage(message);
 				}
+				
 				
 				break;
 				
@@ -145,7 +57,7 @@ public class TransactionLayerUA extends TransactionLayer{
 				if(message instanceof InviteMessage) {
 					currentTransaction = Transaction.INVITE_TRANSACTION;
 					callId = message.getCallId();
-					server = server.processMessage(message, this);
+					server.processMessage(message);
 				}else{
 					ul.recvFromTransaction(message);
 				}
@@ -159,37 +71,34 @@ public class TransactionLayerUA extends TransactionLayer{
 		
 	}
 
-	public void recvRequestFromUser(SIPMessage request, InetAddress requestAddress, int requestPort) {
-		
-		this.requestAddress = requestAddress;
-		this.requestPort = requestPort;
+	
+	@Override
+	public void recvRequestFromUser(SIPMessage request) {
 		
 		if(request instanceof InviteMessage) {
 			currentTransaction = Transaction.INVITE_TRANSACTION;
 			callId = ((InviteMessage)request).getCallId();
-			client = client.processMessage(request, this);
-		}else {
-			sendRequest(request);
+			client.processMessage(request);
+		}else if(request instanceof RegisterMessage) {
+			try {
+				transportLayer.sendToNetwork(requestAddress, requestPort, request);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 		
 	}
 	
-	public void recvResponseFromUser(SIPMessage response) {
-		
-		switch (currentTransaction) {
-		
-			case INVITE_TRANSACTION:
-				server = server.processMessage(response, this);
-				break;
-				
-			case NO_TRANSACTION:
-				sendResponse(response);
-				break;
-				
-			default:
-				break;
+	
+	public void recvSessionRequestFromUser(SIPMessage request, InetAddress sessionAddress, int sessionPort) {
+		try {
+			transportLayer.sendToNetwork(sessionAddress, sessionPort, request);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 	}
-
+	
 
 }

@@ -3,16 +3,15 @@ package ua;
 import java.net.DatagramSocket;
 import java.util.ArrayList;
 import java.util.Scanner;
-
-import layersUA.TransactionLayerUA;
-import layersUA.TransportLayerUA;
-import layersUA.UserLayerUA;
+import java.util.Random;
 
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import mensajesSIP.*;
-import layers.*;
+import layersUA.TransactionLayerUA;
+import layersUA.TransportLayerUA;
+import layersUA.UserLayerUA;
 import utils.*;
 
 public class UA {
@@ -26,7 +25,7 @@ public class UA {
 	public static String usuarioSIP;
 	private static UserLayerUA ul;
 	private static TransactionLayerUA transactionLayer;
-	private static TransportLayer transportLayer;
+	private static TransportLayerUA transportLayer;
 	
 	
 	public static String getContact() {
@@ -51,16 +50,17 @@ public class UA {
 		return "sip:" + user + "@dominio.es";
 	}
 	
-	public static RegisterMessage createRegister()
-	{
+	public static RegisterMessage createRegister(){
+		
 		RegisterMessage registerMessage = new RegisterMessage();
+		Random rand = new Random();
 		
 		registerMessage.setDestination("sip:registrar@dominio.es");
 		registerMessage.setVias(getMyVias());
 		registerMessage.setMaxForwards(70);
 		registerMessage.setToUri(getMyURI());
 		registerMessage.setFromUri(getMyURI());
-		registerMessage.setCallId(Integer.toString(123456789) + "@dominio.es");
+		registerMessage.setCallId(Integer.toString(rand.nextInt(12345) + 1) + "@dominio.es");
 		registerMessage.setcSeqNumber("1234");
 		registerMessage.setcSeqStr("REGISTER");
 		registerMessage.setContact(getContact());
@@ -72,16 +72,18 @@ public class UA {
 	}
 	
 	public static InviteMessage createInvite(String callee) {
+		
 		InviteMessage invite = new InviteMessage();
 		SDPMessage sdp = new SDPMessage();
+		Random rand = new Random();
 		
 		invite.setDestination(createURI(callee));
 		invite.setVias(getMyVias());
 		invite.setMaxForwards(70);
 		invite.setToUri(createURI(callee));
 		invite.setFromUri(getMyURI());
-		invite.setCallId(Integer.toString(123456789) + "@dominio.es");
-		invite.setcSeqNumber("1234");
+		invite.setCallId(Integer.toString(rand.nextInt(12345) + 1) + "@dominio.es");
+		invite.setcSeqNumber("1");
 		invite.setcSeqStr("INVITE");
 		invite.setContact(getContact());
 		sdp.setIp("123.123.123.123");
@@ -173,6 +175,8 @@ public class UA {
 		
 		transactionLayer.setTransportLayer(transportLayer);
 		transactionLayer.setUl(ul);
+		transactionLayer.setRequestAddress(IPProxy);
+		transactionLayer.setRequestPort(puertoEscuchaProxy);
 		
 		transportLayer.setTransactionLayer(transactionLayer);
 		transportLayer.setDatagramSocket(datagramSocket);
